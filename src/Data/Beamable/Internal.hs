@@ -1,8 +1,8 @@
-{-# OPTIONS -Wall #-}
+{-# OPTIONS -Wall -fno-full-laziness #-}
 {-# LANGUAGE DeriveGeneric, TypeOperators, FlexibleContexts, DefaultSignatures #-}
 {-# LANGUAGE FlexibleInstances, ScopedTypeVariables, BangPatterns #-}
 {-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, CPP #-}
 
 module Data.Beamable.Internal
     ( Beamable
@@ -28,8 +28,12 @@ import Data.Bits ((.|.), (.&.), shift, shiftL, shiftR, testBit)
 import Data.ByteString (ByteString)
 import Data.Char (ord, chr)
 import Data.Int (Int8, Int16, Int32, Int64)
-import Data.Monoid (mempty, mappend, mconcat, (<>))
-import Data.Word (Word, Word8, Word16, Word32, Word64)
+#if !(MIN_VERSION_base(4,8,0))
+import Data.Monoid (mempty, mconcat)
+import Data.Word (Word)
+#endif
+import Data.Monoid ((<>))
+import Data.Word (Word8, Word16, Word32, Word64)
 import Foreign.Storable
 import GHC.Generics
 import qualified Data.ByteString as B
@@ -96,7 +100,7 @@ instance (GBeamable a, Datatype d, Constructor c) => GBeamable (M1 D d (M1 C c a
 -- this instance used for  datatypes with multiple constructors and
 -- values are prefixed by uniq number for each constructor
 instance (GBeamable a, Constructor c) => GBeamable (M1 C c a) where
-    gbeam (M1 x) t@(_, dirs) = mappend (beamWord $ fromIntegral dirs) (gbeam x t)
+    gbeam (M1 x) t@(_, dirs) = (beamWord $ fromIntegral dirs) <> (gbeam x t)
     {-# INLINE gbeam #-}
     gunbeam bs = first M1 . gunbeam bs
     gtypeSign prev x = signMur (conName x, '<', gtypeSign prev (unM1 x))
@@ -131,7 +135,7 @@ instance GBeamable U1 where
     gtypeSign _ _x = signMur 'U'
 
 instance (GBeamable a, GBeamable b) => GBeamable (a :*: b) where
-    gbeam (x :*: y) t = gbeam x t `mappend` gbeam y t
+    gbeam (x :*: y) t = gbeam x t <> gbeam y t
     gunbeam bs t = let !(ra, bs')  = gunbeam bs t
                        !(rb, bs'') = gunbeam bs' t
                    in (ra :*: rb, bs'')
@@ -251,7 +255,7 @@ unfoldCnt cnt_i f = unfoldCnt' id cnt_i
                               in unfoldCnt' (xs.(x:)) (cnt - 1) b'
 
 instance Beamable ByteString where
-    beam bs = beamWord (fromIntegral $ B.length bs) `mappend` fromByteString bs
+    beam bs = beamWord (fromIntegral $ B.length bs) <> fromByteString bs
     unbeam = uncurry (B.splitAt . fromIntegral) . unbeamWord
     typeSignR _ _ = signMur "ByteString.Strict"
 

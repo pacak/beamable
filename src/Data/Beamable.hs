@@ -1,4 +1,5 @@
 {-# OPTIONS -Wall #-}
+{-# LANGUAGE CPP #-}
 
 -- | To serialize your own datatype first you need to add DeriveGeneric pragma to the module
 -- where your data is declared, derive Generic instance for that datatype and add empty
@@ -35,7 +36,9 @@ import Data.Beamable.Internal
 import Blaze.ByteString.Builder
 
 import qualified Data.ByteString as B
+#if !(MIN_VERSION_base(4,8,0))
 import Data.Word (Word)
+#endif
 
 data Decoder a
     = WantAnyData
